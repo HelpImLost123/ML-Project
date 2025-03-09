@@ -1,7 +1,4 @@
 # Face Blur Application
-
-This project is a Face Blur Application that allows you to record live video with audio, process existing videos, and blur detected faces. The application uses OpenCV for video processing, PyAudio for audio recording, and PyAV for combining audio and video.
-
 ## Prerequisites
 
 Before you begin, ensure you have met the following requirements:
