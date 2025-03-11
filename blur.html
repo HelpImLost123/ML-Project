@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Blur Tool</title>
+    <link rel="stylesheet" href="blur.css">
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">Face Blur</div>
+            <div class="project-name">New Project</div>
+            <input type="file" id="mediaInput" accept="image/*,video/*" style="display: none;">
+            <div class="import-button" onclick="document.getElementById('mediaInput').click()">Import Media</div>
+        </div>
+        
+        <div class="settings-section">
+            <div class="settings-title">Blur Settings</div>
+            <div class="setting-item">
+                <label>Blur Intensity</label>
+                <input type="range" id="blurIntensity" min="1" max="20" value="10">
+            </div>
+            <div class="setting-item">
+                <label>Face Detection Confidence</label>
+                <input type="range" id="confidenceThreshold" min="0" max="100" value="80">
+            </div>
+            <button id="autoDetectBtn" class="action-button">Auto Detect Faces</button>
+            <button id="manualBlurBtn" class="action-button">Manual Blur Tool</button>
+        </div>
+
+        <div class="layers-section">
+            <div class="layers-title">Detected Faces</div>
+            <ul id="facesList" class="faces-list">
+                <!-- Detected faces will be listed here -->
+            </ul>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="preview-area">
+            <canvas id="previewCanvas"></canvas>
+            <div class="overlay" id="drawingOverlay"></div>
+        </div>
+
+        <div class="toolbar">
+            <button id="undoBtn">Undo</button>
+            <button id="redoBtn">Redo</button>
+            <button id="resetBtn">Reset</button>
+            <button id="exportBtn">Export</button>
+        </div>
+
+        <div class="status-bar">
+            <span id="statusText">Ready to process</span>
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-detection"></script>
+    <script src="blur.js"></script>
+</body>
+</html>
