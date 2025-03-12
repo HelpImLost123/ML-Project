@@ -41,19 +41,6 @@ Before you begin, ensure you have met the following requirements:
     pip install -r requirements.txt
     ```
 
-## Dependencies
-
-The required dependencies are listed in the [requirements.txt](http://_vscodecontentref_/0) file. Here are the main packages used in this project:
-
-- `opencv-python`: For video processing.
-- `pyaudio`: For audio recording.
-- `Pillow`: For image processing in the Tkinter GUI.
-- `av`: For combining audio and video.
-
-## Usage
-
-1. **Run the application:**
-
-    ```sh
-    python src/main.py
-    ```
+## Additional dependencies
+- need ffmpeg
+from https://ffmpeg.org/download.html
