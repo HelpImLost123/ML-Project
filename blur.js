@@ -12,7 +12,9 @@ class FaceBlurTool {
         this.detectedFaces = [];
         this.isVideo = false;
         this.faceDetector = null;
-        
+        this.mediaRecorder = null;
+        this.recordedChunks = [];
+
         this.initializeEvents();
         this.loadFaceDetector();
     }
@@ -67,6 +69,62 @@ class FaceBlurTool {
             this.ctx.drawImage(img, 0, 0);
             this.updateStatus('Image loaded');
         };
+    }
+
+    async loadVideo(file) {
+        this.updateStatus('Loading video...');
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
+        video.autoplay = true;
+        video.loop = true;
+
+        video.onloadeddata = () => {
+            this.currentMedia = video;
+            this.canvas.width = video.videoWidth;
+            this.canvas.height = video.videoHeight;
+            this.updateStatus('Video loaded');
+            
+            // Start processing the video frame
+            this.processVideo();
+        };
+    }
+
+    async processVideo() {
+        if (!this.isVideo || !this.faceDetector) return;
+
+        // Capture video stream
+        const stream = this.canvas.captureStream(30); // 30fps
+        this.mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        
+        this.mediaRecorder.ondataavailable = (event) => {
+            this.recordedChunks.push(event.data);
+        };
+
+        this.mediaRecorder.onstop = () => {
+            const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
+            this.recordedChunks = [];
+            this.exportVideo(blob);
+        };
+
+        // Start recording
+        this.mediaRecorder.start();
+
+        // Process the video frames
+        const processFrame = async () => {
+            if (this.currentMedia.paused || this.currentMedia.ended) return;
+            
+            // Draw the video frame onto the canvas
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.drawImage(this.currentMedia, 0, 0);
+
+            // Detect faces
+            await this.detectFaces();
+            this.applyBlur();
+
+            // Request the next frame for processing
+            requestAnimationFrame(processFrame);
+        };
+        processFrame();
     }
 
     async detectFaces() {
@@ -174,20 +232,29 @@ class FaceBlurTool {
         this.statusText.textContent = message;
     }
 
-    async exportMedia() {
-        if (!this.canvas.toBlob) {
-            this.updateStatus('Export not supported in this browser');
-            return;
+    exportMedia() {
+        if (this.isVideo && this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+            this.mediaRecorder.stop();
+        } else {
+            // Handle image export
+            this.canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'blurred-image.png';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
         }
+    }
 
-        this.canvas.toBlob(blob => {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'blurred-image.png';
-            a.click();
-            URL.revokeObjectURL(url);
-        });
+    exportVideo(blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'blurred-video.webm';
+        a.click();
+        URL.revokeObjectURL(url);
     }
 }
 
