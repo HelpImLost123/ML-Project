@@ -24,7 +24,7 @@
                 <label>Face Detection Confidence</label>
                 <input type="range" id="confidenceThreshold" min="0" max="100" value="80">
             </div>
-            <button id="autoDetectBtn" class="action-button">Auto Detect Faces</button>
+            <button id="autoDetectBtn" class="action-button">Auto Blur Faces</button>
             <button id="manualBlurBtn" class="action-button">Manual Blur Tool</button>
         </div>
 
@@ -47,6 +47,9 @@
         <div class="preview-area">
             <canvas id="previewCanvas"></canvas>
             <div class="overlay" id="drawingOverlay"></div>
+            <div class="video-controls">
+                <button id="playPauseBtn">Play</button>
+            </div>
         </div>
 
         <div class="toolbar">

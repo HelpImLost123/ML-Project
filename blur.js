@@ -11,6 +11,15 @@ class FaceBlurTool {
         this.personList = document.getElementById('personList');
         this.addPersonBtn = document.getElementById('addPersonBtn');
         this.people = [];
+
+        this.videoControls = document.querySelector('.video-controls');
+        this.playPauseBtn = document.getElementById('playPauseBtn');
+        // Add play/pause control
+        this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
+
+        // Add to your event listeners
+        this.autoDetectBtn = document.getElementById('autoDetectBtn');
+        this.autoDetectBtn.addEventListener('click', () => this.processWithModel());
         
         // Add this to initializeEvents()
         this.addPersonBtn.addEventListener('click', () => this.addNewPerson());
@@ -56,9 +65,11 @@ class FaceBlurTool {
 
         if (file.type.startsWith('image/')) {
             this.isVideo = false;
+            this.videoControls.style.display = 'none';
             await this.loadImage(file);
         } else if (file.type.startsWith('video/')) {
             this.isVideo = true;
+            this.videoControls.style.display = 'block';
             await this.loadVideo(file);
         }
     }
@@ -75,6 +86,7 @@ class FaceBlurTool {
             this.setupOverlay(); // Set overlay dimensions
             this.ctx.drawImage(img, 0, 0);
             this.updateStatus('Image loaded');
+            this.videoControls.style.display = 'none'; // Hide video controls for images
         };
     }
 
@@ -195,6 +207,19 @@ class FaceBlurTool {
         }
     }
 
+    //Play pause button for video
+    togglePlayPause() {
+        if (!this.currentMedia || !this.isVideo) return;
+        
+        if (this.currentMedia.paused) {
+            this.currentMedia.play();
+            this.playPauseBtn.textContent = 'Pause';
+        } else {
+            this.currentMedia.pause();
+            this.playPauseBtn.textContent = 'Play';
+        }
+    }
+
     async loadVideo(file) {
         this.updateStatus('Loading video...');
         const video = document.createElement('video');
@@ -207,7 +232,7 @@ class FaceBlurTool {
             this.canvas.width = video.videoWidth;
             this.canvas.height = video.videoHeight;
             this.updateStatus('Video loaded');
-            
+            this.videoControls.style.display = 'block'; // Show video controls for videos
             // Start processing the video frame
             this.processVideo();
         };
@@ -452,6 +477,57 @@ class FaceBlurTool {
         
         fileInput.click();
     }
+
+    //Auto blur button
+    async processWithModel() {
+        if (!this.currentMedia) {
+            this.updateStatus('Please import an file first');
+            return;
+        }
+
+        this.updateStatus('Processing with trained model...');
+
+        try {
+            // Convert canvas to blob
+            const blob = await new Promise(resolve => {
+                this.canvas.toBlob(resolve, 'image/jpeg');
+            });
+
+            // Create form data
+            const formData = new FormData();
+            formData.append('image', blob);
+
+            // Send to backend
+            const response = await fetch('http://localhost:5000/process_image', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Processing failed');
+            }
+
+            // Display processed image
+            const processedBlob = await response.blob();
+            const processedUrl = URL.createObjectURL(processedBlob);
+            const processedImg = new Image();
+            
+            processedImg.onload = () => {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.drawImage(processedImg, 0, 0);
+                this.updateStatus('Processing complete');
+                URL.revokeObjectURL(processedUrl);
+            };
+            
+            processedImg.src = processedUrl;
+
+        } catch (error) {
+            this.updateStatus('Error processing image');
+            console.error(error);
+        }
+    }
+
+    //Person selector
     async sendImagesToBackend(name, files) {
         const formData = new FormData();
         formData.append('name', name);
