@@ -8,6 +8,12 @@ class FaceBlurTool {
         this.confidenceThreshold = document.getElementById('confidenceThreshold');
         this.statusText = document.getElementById('statusText');
         this.facesList = document.getElementById('facesList');
+        this.personList = document.getElementById('personList');
+        this.addPersonBtn = document.getElementById('addPersonBtn');
+        this.people = [];
+        
+        // Add this to initializeEvents()
+        this.addPersonBtn.addEventListener('click', () => this.addNewPerson());
         
         this.currentMedia = null;
         this.detectedFaces = [];
@@ -385,7 +391,94 @@ class FaceBlurTool {
         
         return new ImageData(output, width, height);
     }
+// Add these new methods
+    async addNewPerson() {
+        const name = await this.showPrompt('Enter person name:');
+        if (!name) return;
 
+        const person = {
+            id: Date.now(),
+            name: name
+        };
+
+        this.people.push(person);
+        this.createPersonFolder(person);
+        this.updatePersonList();
+    }
+
+    showPrompt(message) {
+        return new Promise((resolve) => {
+            const name = prompt(message);
+            resolve(name);
+        });
+    }
+
+    createPersonFolder(person) {
+        const personElement = document.createElement('div');
+        personElement.className = 'person-item';
+        personElement.innerHTML = `
+            <span class="folder-icon">📁</span>
+            <span>${person.name}</span>
+        `;
+        personElement.addEventListener('click', () => this.selectPerson(person));
+        this.personList.appendChild(personElement);
+    }
+
+    updatePersonList() {
+        this.personList.innerHTML = '';
+        this.people.forEach(person => {
+            this.createPersonFolder(person);
+        });
+    }
+
+    selectPerson(person) {
+        // Create hidden file input for image selection
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true;
+        fileInput.accept = 'image/*';
+        
+        fileInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length > 0) {
+                try {
+                    await this.sendImagesToBackend(person.name, files);
+                    this.updateStatus(`Images uploaded for ${person.name}`);
+                } catch (error) {
+                    this.updateStatus('Failed to upload images');
+                }
+            }
+        });
+        
+        fileInput.click();
+    }
+    async sendImagesToBackend(name, files) {
+        const formData = new FormData();
+        formData.append('name', name);
+        files.forEach(file => {
+            formData.append('faces', file);
+        });
+
+        try {
+            this.updateStatus('Uploading images...');
+            const response = await fetch('http://localhost:5000/process_video', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error('Upload failed');
+            }
+            
+            const result = await response.json();
+            console.log('Upload successful:', result);
+            return result;
+        } catch (error) {
+            console.error('Error uploading images:', error);
+            this.updateStatus('Failed to upload images');
+            throw error;
+        }
+    }
     updateFacesList() {
         this.facesList.innerHTML = '';
         this.detectedFaces.forEach((face, index) => {
