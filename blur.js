@@ -2,6 +2,7 @@ class FaceBlurTool {
     constructor() {
         this.canvas = document.getElementById('previewCanvas');
         this.ctx = this.canvas.getContext('2d');
+        this.overlay = document.getElementById('drawingOverlay');
         this.mediaInput = document.getElementById('mediaInput');
         this.blurIntensity = document.getElementById('blurIntensity');
         this.confidenceThreshold = document.getElementById('confidenceThreshold');
@@ -14,32 +15,31 @@ class FaceBlurTool {
         this.faceDetector = null;
         this.mediaRecorder = null;
         this.recordedChunks = [];
+        
+        // Manual blur properties
+        this.isManualBlurMode = false;
+        this.isDrawing = false;
+        this.lastX = 0;
+        this.lastY = 0;
 
         this.initializeEvents();
         this.loadFaceDetector();
     }
 
-    async loadFaceDetector() {
-        this.updateStatus('Loading face detection model...');
-        try {
-            this.faceDetector = await faceDetection.createDetector(
-                faceDetection.SupportedModels.MediaPipeFaceDetector,
-                { runtime: 'tfjs' }
-            );
-            this.updateStatus('Ready to process');
-        } catch (error) {
-            this.updateStatus('Error loading face detection model');
-            console.error(error);
-        }
-    }
-
     initializeEvents() {
         this.mediaInput.addEventListener('change', (e) => this.handleMediaInput(e));
         document.getElementById('autoDetectBtn').addEventListener('click', () => this.detectFaces());
-        document.getElementById('manualBlurBtn').addEventListener('click', () => this.enableManualBlur());
+        document.getElementById('manualBlurBtn').addEventListener('click', () => this.toggleManualBlur());
         document.getElementById('exportBtn').addEventListener('click', () => this.exportMedia());
+        
+        // Manual blur events
+        this.overlay.addEventListener('mousedown', (e) => this.startDrawing(e));
+        this.overlay.addEventListener('mousemove', (e) => this.draw(e));
+        this.overlay.addEventListener('mouseup', () => this.stopDrawing());
+        this.overlay.addEventListener('mouseout', () => this.stopDrawing());
     }
 
+    // Media handling methods
     async handleMediaInput(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -66,9 +66,127 @@ class FaceBlurTool {
             this.currentMedia = img;
             this.canvas.width = img.width;
             this.canvas.height = img.height;
+            this.setupOverlay(); // Set overlay dimensions
             this.ctx.drawImage(img, 0, 0);
             this.updateStatus('Image loaded');
         };
+    }
+
+    // Manual blur methods
+    toggleManualBlur() {
+        this.isManualBlurMode = !this.isManualBlurMode;
+        
+        if (this.isManualBlurMode) {
+            this.setupOverlay();
+            this.overlay.style.cursor = 'crosshair';
+            document.getElementById('manualBlurBtn').classList.add('active');
+        } else {
+            this.overlay.style.cursor = 'default';
+            document.getElementById('manualBlurBtn').classList.remove('active');
+        }
+    }
+
+    setupOverlay() {
+        // ปรับขนาด overlay ให้ตรงกับ canvas
+        this.overlay.width = this.canvas.width;
+        this.overlay.height = this.canvas.height;
+        
+        // คำนวณ scale เพื่อปรับขนาดการแสดงผล
+        const canvasRect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / canvasRect.width;
+        const scaleY = this.canvas.height / canvasRect.height;
+        
+        this.overlay.style.width = `${canvasRect.width}px`;
+        this.overlay.style.height = `${canvasRect.height}px`;
+        
+        // เก็บค่า scale ไว้ใช้ในการคำนวณตำแหน่ง
+        this.scaleX = scaleX;
+        this.scaleY = scaleY;
+    }
+
+    startDrawing(e) {
+        if (!this.isManualBlurMode) return;
+        this.isDrawing = true;
+        const rect = this.overlay.getBoundingClientRect();
+        // ปรับตำแหน่งตาม scale
+        this.lastX = (e.clientX - rect.left) * this.scaleX;
+        this.lastY = (e.clientY - rect.top) * this.scaleY;
+    }
+
+    draw(e) {
+        if (!this.isManualBlurMode || !this.isDrawing) return;
+        
+        const rect = this.overlay.getBoundingClientRect();
+        // ปรับตำแหน่งตาม scale
+        const currentX = (e.clientX - rect.left) * this.scaleX;
+        const currentY = (e.clientY - rect.top) * this.scaleY;
+        
+        const distance = Math.sqrt(
+            Math.pow(currentX - this.lastX, 2) + 
+            Math.pow(currentY - this.lastY, 2)
+        );
+        
+        const steps = Math.max(Math.floor(distance), 1);
+        for (let i = 0; i <= steps; i++) {
+            const x = this.lastX + (currentX - this.lastX) * (i / steps);
+            const y = this.lastY + (currentY - this.lastY) * (i / steps);
+            this.applyBlurAtPoint(x, y);
+        }
+        
+        this.lastX = currentX;
+        this.lastY = currentY;
+    }
+
+    stopDrawing() {
+        this.isDrawing = false;
+        const ctx = this.overlay.getContext('2d');
+        ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
+    }
+
+    applyBlurAtPoint(x, y) {
+        const radius = 20;
+        const blurAmount = parseInt(this.blurIntensity.value);
+        
+        const imageData = this.ctx.getImageData(
+            Math.max(0, x - radius),
+            Math.max(0, y - radius),
+            radius * 2,
+            radius * 2
+        );
+        
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = imageData.width;
+        tempCanvas.height = imageData.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.putImageData(imageData, 0, 0);
+        
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, radius, 0, Math.PI * 2);
+        this.ctx.clip();
+        this.ctx.filter = `blur(${blurAmount}px)`;
+        
+        this.ctx.drawImage(
+            tempCanvas,
+            Math.max(0, x - radius),
+            Math.max(0, y - radius)
+        );
+        
+        this.ctx.restore();
+    }
+
+    async loadFaceDetector() {
+        this.updateStatus('Loading face detection model...');
+        try {
+            this.faceDetector = await faceDetection.createDetector(
+                faceDetection.SupportedModels.MediaPipeFaceDetector,
+                { runtime: 'tfjs' }
+            );
+            this.updateStatus('Ready to process');
+        } catch (error) {
+            this.updateStatus('Error loading face detection model');
+            console.error(error);
+        }
     }
 
     async loadVideo(file) {
@@ -91,40 +209,89 @@ class FaceBlurTool {
 
     async processVideo() {
         if (!this.isVideo || !this.faceDetector) return;
+        await new Promise(resolve => {
+            this.currentMedia.addEventListener('canplay', resolve, { once: true });
+        });
 
-        // Capture video stream
-        const stream = this.canvas.captureStream(30); // 30fps
-        this.mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        // เริ่มต้นจากจุดเริ่มต้นวิดีโอ
+        this.currentMedia.currentTime = 0;
+        
+        // ตั้งค่าการบันทึก
+        const stream = this.canvas.captureStream(30);
+        this.mediaRecorder = new MediaRecorder(stream, { 
+            mimeType: 'video/webm;codecs=vp9',
+            videoBitsPerSecond: 5000000 // เพิ่มคุณภาพวิดีโอ
+        });
         
         this.mediaRecorder.ondataavailable = (event) => {
-            this.recordedChunks.push(event.data);
+            if (event.data.size > 0) {
+                this.recordedChunks.push(event.data);
+            }
         };
 
-        this.mediaRecorder.onstop = () => {
-            const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
-            this.recordedChunks = [];
-            this.exportVideo(blob);
-        };
+        // เริ่มบันทึก
+        this.mediaRecorder.start(1000); // บันทึกทุกๆ 1 วินาที
 
-        // Start recording
-        this.mediaRecorder.start();
-
-        // Process the video frames
+        // ประมวลผลแต่ละเฟรม
         const processFrame = async () => {
-            if (this.currentMedia.paused || this.currentMedia.ended) return;
-            
-            // Draw the video frame onto the canvas
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.drawImage(this.currentMedia, 0, 0);
+            if (this.currentMedia.ended) {
+                this.mediaRecorder.stop();
+                return;
+            }
 
-            // Detect faces
+            this.ctx.drawImage(this.currentMedia, 0, 0);
             await this.detectFaces();
             this.applyBlur();
 
-            // Request the next frame for processing
             requestAnimationFrame(processFrame);
         };
+
+        // เริ่มเล่นวิดีโอและประมวลผล
+        this.currentMedia.play();
         processFrame();
+    }
+
+    exportMedia() {
+        if (this.isVideo) {
+            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                this.currentMedia.pause();
+                this.mediaRecorder.stop();
+            }
+
+            // รอให้การบันทึกเสร็จสิ้นแล้วค่อย export
+            this.mediaRecorder.onstop = () => {
+                const blob = new Blob(this.recordedChunks, { 
+                    type: 'video/webm;codecs=vp9'
+                });
+                
+                // สร้าง URL สำหรับดาวน์โหลด
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'processed-video.webm';
+                a.click();
+                
+                // ทำความสะอาด
+                URL.revokeObjectURL(url);
+                this.recordedChunks = [];
+                
+                // รีเซ็ตวิดีโอ
+                this.currentMedia.currentTime = 0;
+                this.currentMedia.play();
+            };
+        } else {
+            // ... existing image export code ...
+            this.canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'blurred-image.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        }
     }
 
     async detectFaces() {
@@ -230,31 +397,6 @@ class FaceBlurTool {
 
     updateStatus(message) {
         this.statusText.textContent = message;
-    }
-
-    exportMedia() {
-        if (this.isVideo && this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-            this.mediaRecorder.stop();
-        } else {
-            // Handle image export
-            this.canvas.toBlob(blob => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'blurred-image.png';
-                a.click();
-                URL.revokeObjectURL(url);
-            });
-        }
-    }
-
-    exportVideo(blob) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'blurred-video.webm';
-        a.click();
-        URL.revokeObjectURL(url);
     }
 }
 
