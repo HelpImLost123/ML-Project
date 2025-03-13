@@ -2,7 +2,6 @@ class FaceBlurTool {
     constructor() {
         this.canvas = document.getElementById('previewCanvas');
         this.ctx = this.canvas.getContext('2d');
-        this.overlay = document.getElementById('drawingOverlay');
         this.mediaInput = document.getElementById('mediaInput');
         this.blurIntensity = document.getElementById('blurIntensity');
         this.confidenceThreshold = document.getElementById('confidenceThreshold');
@@ -23,35 +22,17 @@ class FaceBlurTool {
         
         // Add this to initializeEvents()
         this.addPersonBtn.addEventListener('click', () => this.addNewPerson());
-        
-        this.currentMedia = null;
-        this.detectedFaces = [];
-        this.isVideo = false;
-        this.faceDetector = null;
-        this.mediaRecorder = null;
-        this.recordedChunks = [];
-        
-        // Manual blur properties
-        this.isManualBlurMode = false;
-        this.isDrawing = false;
-        this.lastX = 0;
-        this.lastY = 0;
 
+        this.currentMedia = null;
+        this.facesNotToBlur = [];
+        
         this.initializeEvents();
-        this.loadFaceDetector();
     }
 
     initializeEvents() {
         this.mediaInput.addEventListener('change', (e) => this.handleMediaInput(e));
         document.getElementById('autoDetectBtn').addEventListener('click', () => this.detectFaces());
-        document.getElementById('manualBlurBtn').addEventListener('click', () => this.toggleManualBlur());
         document.getElementById('exportBtn').addEventListener('click', () => this.exportMedia());
-        
-        // Manual blur events
-        this.overlay.addEventListener('mousedown', (e) => this.startDrawing(e));
-        this.overlay.addEventListener('mousemove', (e) => this.draw(e));
-        this.overlay.addEventListener('mouseup', () => this.stopDrawing());
-        this.overlay.addEventListener('mouseout', () => this.stopDrawing());
     }
 
     // Media handling methods
@@ -59,153 +40,51 @@ class FaceBlurTool {
         const file = event.target.files[0];
         if (!file) return;
 
-        this.currentMedia = null;
-        this.detectedFaces = [];
-        this.updateFacesList();
-
-        if (file.type.startsWith('image/')) {
-            this.isVideo = false;
-            this.videoControls.style.display = 'none';
-            await this.loadImage(file);
-        } else if (file.type.startsWith('video/')) {
-            this.isVideo = true;
+        if (file.type.startsWith('video/')) {
+            this.currentMedia = null;
+            this.facesNotToBlur = [];
+            this.updateFacesList();
             this.videoControls.style.display = 'block';
             await this.loadVideo(file);
+        } else {
+            this.updateStatus('Error loading video');
         }
     }
 
-    async loadImage(file) {
-        this.updateStatus('Loading image...');
-        const img = new Image();
-        img.src = URL.createObjectURL(file);
-        
-        img.onload = () => {
-            this.currentMedia = img;
-            this.canvas.width = img.width;
-            this.canvas.height = img.height;
-            this.setupOverlay(); // Set overlay dimensions
-            this.ctx.drawImage(img, 0, 0);
-            this.updateStatus('Image loaded');
-            this.videoControls.style.display = 'none'; // Hide video controls for images
+    async loadVideo(file) {
+        this.updateStatus('Loading video...');
+        const video = document.createElement('video');
+        video.autoplay = false;
+        video.loop = false;
+        video.setAttribute('controls', '');
+        video.setAttribute('src', URL.createObjectURL(file));
+
+        video.onloadeddata = () => {
+            this.currentMedia = video;
+            this.canvas.width = video.videoWidth;
+            this.canvas.height = video.videoHeight;
+            this.updateStatus('Video loaded');
+            const previewArea = document.querySelector('.preview-area');
+            this.canvas.style.display = 'none';
+            previewArea.appendChild(video);
+            this.videoControls.style.display = 'block'; // Show video controls for videos
         };
     }
 
-    // Manual blur methods
-    toggleManualBlur() {
-        this.isManualBlurMode = !this.isManualBlurMode;
-        
-        if (this.isManualBlurMode) {
-            this.setupOverlay();
-            this.overlay.style.cursor = 'crosshair';
-            document.getElementById('manualBlurBtn').classList.add('active');
-        } else {
-            this.overlay.style.cursor = 'default';
-            document.getElementById('manualBlurBtn').classList.remove('active');
-        }
-    }
+    // addVideoPlayer(videoUrl) {
+    //     const previewArea = document.querySelector('.preview-area');
 
-    setupOverlay() {
-        // ปรับขนาด overlay ให้ตรงกับ canvas
-        this.overlay.width = this.canvas.width;
-        this.overlay.height = this.canvas.height;
-        
-        // คำนวณ scale เพื่อปรับขนาดการแสดงผล
-        const canvasRect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / canvasRect.width;
-        const scaleY = this.canvas.height / canvasRect.height;
-        
-        this.overlay.style.width = `${canvasRect.width}px`;
-        this.overlay.style.height = `${canvasRect.height}px`;
-        
-        // เก็บค่า scale ไว้ใช้ในการคำนวณตำแหน่ง
-        this.scaleX = scaleX;
-        this.scaleY = scaleY;
-    }
+    //     // Create video element
+    //     const videoElement = document.createElement('video');
+    //     videoElement.setAttribute('controls', ''); // Built-in controls (play, pause, volume, etc.)
+    //     videoElement.setAttribute('src', videoUrl); // Set the video source
 
-    startDrawing(e) {
-        if (!this.isManualBlurMode) return;
-        this.isDrawing = true;
-        const rect = this.overlay.getBoundingClientRect();
-        // ปรับตำแหน่งตาม scale
-        this.lastX = (e.clientX - rect.left) * this.scaleX;
-        this.lastY = (e.clientY - rect.top) * this.scaleY;
-    }
+    //     // Hide canvas and append video to preview area
+    //     const canvas = document.getElementById('previewCanvas');
+    //     canvas.style.display = 'none'; // Hide canvas once video is added
 
-    draw(e) {
-        if (!this.isManualBlurMode || !this.isDrawing) return;
-        
-        const rect = this.overlay.getBoundingClientRect();
-        // ปรับตำแหน่งตาม scale
-        const currentX = (e.clientX - rect.left) * this.scaleX;
-        const currentY = (e.clientY - rect.top) * this.scaleY;
-        
-        const distance = Math.sqrt(
-            Math.pow(currentX - this.lastX, 2) + 
-            Math.pow(currentY - this.lastY, 2)
-        );
-        
-        const steps = Math.max(Math.floor(distance), 1);
-        for (let i = 0; i <= steps; i++) {
-            const x = this.lastX + (currentX - this.lastX) * (i / steps);
-            const y = this.lastY + (currentY - this.lastY) * (i / steps);
-            this.applyBlurAtPoint(x, y);
-        }
-        
-        this.lastX = currentX;
-        this.lastY = currentY;
-    }
-
-    stopDrawing() {
-        this.isDrawing = false;
-        const ctx = this.overlay.getContext('2d');
-        ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
-    }
-
-    applyBlurAtPoint(x, y) {
-        const radius = 20;
-        const blurAmount = parseInt(this.blurIntensity.value);
-        
-        const imageData = this.ctx.getImageData(
-            Math.max(0, x - radius),
-            Math.max(0, y - radius),
-            radius * 2,
-            radius * 2
-        );
-        
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = imageData.width;
-        tempCanvas.height = imageData.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.putImageData(imageData, 0, 0);
-        
-        this.ctx.save();
-        this.ctx.beginPath();
-        this.ctx.arc(x, y, radius, 0, Math.PI * 2);
-        this.ctx.clip();
-        this.ctx.filter = `blur(${blurAmount}px)`;
-        
-        this.ctx.drawImage(
-            tempCanvas,
-            Math.max(0, x - radius),
-            Math.max(0, y - radius)
-        );
-        
-        this.ctx.restore();
-    }
-
-    async loadFaceDetector() {
-        this.updateStatus('Loading face detection model...');
-        try {
-            this.faceDetector = await faceDetection.createDetector(
-                faceDetection.SupportedModels.MediaPipeFaceDetector,
-                { runtime: 'tfjs' }
-            );
-            this.updateStatus('Ready to process');
-        } catch (error) {
-            this.updateStatus('Error loading face detection model');
-            console.error(error);
-        }
-    }
+    //     previewArea.appendChild(videoElement); // Append the video element to preview area
+    // }
 
     //Play pause button for video
     togglePlayPause() {
@@ -220,23 +99,7 @@ class FaceBlurTool {
         }
     }
 
-    async loadVideo(file) {
-        this.updateStatus('Loading video...');
-        const video = document.createElement('video');
-        video.src = URL.createObjectURL(file);
-        video.autoplay = true;
-        video.loop = true;
-
-        video.onloadeddata = () => {
-            this.currentMedia = video;
-            this.canvas.width = video.videoWidth;
-            this.canvas.height = video.videoHeight;
-            this.updateStatus('Video loaded');
-            this.videoControls.style.display = 'block'; // Show video controls for videos
-            // Start processing the video frame
-            this.processVideo();
-        };
-    }
+    
 
     async processVideo() {
         if (!this.isVideo || !this.faceDetector) return;
@@ -325,97 +188,6 @@ class FaceBlurTool {
         }
     }
 
-    async detectFaces() {
-        if (!this.currentMedia || !this.faceDetector) return;
-
-        this.updateStatus('Detecting faces...');
-        try {
-            this.detectedFaces = await this.faceDetector.estimateFaces(this.currentMedia);
-            this.updateStatus(`Detected ${this.detectedFaces.length} faces`);
-            this.updateFacesList();
-            this.applyBlur();
-        } catch (error) {
-            this.updateStatus('Error detecting faces');
-            console.error(error);
-        }
-    }
-
-    applyBlur() {
-        if (!this.currentMedia || !this.detectedFaces.length) return;
-
-        // Create temporary canvas for blur effect
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = this.canvas.width;
-        tempCanvas.height = this.canvas.height;
-        const tempCtx = tempCanvas.getContext('2d');
-
-        // Draw original image
-        tempCtx.drawImage(this.currentMedia, 0, 0);
-
-        // Apply blur to each face
-        this.detectedFaces.forEach(face => {
-            const { topLeft, bottomRight } = face.box;
-            const width = bottomRight[0] - topLeft[0];
-            const height = bottomRight[1] - topLeft[1];
-
-            // Extract face region
-            const faceData = tempCtx.getImageData(topLeft[0], topLeft[1], width, height);
-            
-            // Apply blur
-            const blurredFace = this.blurImageData(faceData, this.blurIntensity.value);
-            
-            // Put blurred face back
-            tempCtx.putImageData(blurredFace, topLeft[0], topLeft[1]);
-        });
-
-        // Draw final result
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(tempCanvas, 0, 0);
-    }
-
-    blurImageData(imageData, intensity) {
-        // Simple box blur implementation
-        const pixels = imageData.data;
-        const width = imageData.width;
-        const height = imageData.height;
-        const blurRadius = parseInt(intensity);
-        
-        // Create output array
-        const output = new Uint8ClampedArray(pixels.length);
-        
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                let r = 0, g = 0, b = 0, a = 0;
-                let count = 0;
-                
-                // Box blur kernel
-                for (let ky = -blurRadius; ky <= blurRadius; ky++) {
-                    for (let kx = -blurRadius; kx <= blurRadius; kx++) {
-                        const px = x + kx;
-                        const py = y + ky;
-                        
-                        if (px >= 0 && px < width && py >= 0 && py < height) {
-                            const i = (py * width + px) * 4;
-                            r += pixels[i];
-                            g += pixels[i + 1];
-                            b += pixels[i + 2];
-                            a += pixels[i + 3];
-                            count++;
-                        }
-                    }
-                }
-                
-                // Calculate average
-                const i = (y * width + x) * 4;
-                output[i] = r / count;
-                output[i + 1] = g / count;
-                output[i + 2] = b / count;
-                output[i + 3] = a / count;
-            }
-        }
-        
-        return new ImageData(output, width, height);
-    }
 // Add these new methods
     async addNewPerson() {
         const name = await this.showPrompt('Enter person name:');
@@ -567,7 +339,17 @@ class FaceBlurTool {
     updateStatus(message) {
         this.statusText.textContent = message;
     }
+
+    updateBlurIntensity(value) {
+        blurIntensityValue.textContent = value;
+    }
+    
+    updateConfidenceValue(value) {
+        confidenceValue.textContent = value;
+    }
 }
+
+
 
 // Initialize the tool when the page loads
 window.addEventListener('DOMContentLoaded', () => {

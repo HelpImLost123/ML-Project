@@ -18,14 +18,13 @@
             <div class="settings-title">Blur Settings</div>
             <div class="setting-item">
                 <label>Blur Intensity</label>
-                <input type="range" id="blurIntensity" min="0" max="100" value="50">
+                <input type="range" id="blurIntensity" min="0" max="100" value="50" step="1">
             </div>
             <div class="setting-item">
                 <label>Face Detection Confidence</label>
-                <input type="range" id="confidenceThreshold" min="0" max="100" value="80">
+                <input type="range" id="confidenceThreshold" min="0" max="1" value="0.6" step="0.01">
             </div>
             <button id="autoDetectBtn" class="action-button">Auto Blur Faces</button>
-            <button id="manualBlurBtn" class="action-button">Manual Blur Tool</button>
         </div>
 
         <div class="layers-section">
@@ -46,10 +45,7 @@
     <div class="main-content">
         <div class="preview-area">
             <canvas id="previewCanvas"></canvas>
-            <div class="overlay" id="drawingOverlay"></div>
-            <div class="video-controls">
-                <button id="playPauseBtn">Play</button>
-            </div>
+            
         </div>
 
         <div class="toolbar">
