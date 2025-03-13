@@ -11,8 +11,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 app = Flask(__name__)
 
 # Load models at startup
-# face_detector = load_model('face_detector.h5') not finished, using dlib for now
-face_recognizer = load_model('face_recognizer.h5')
+# face_detector = load_model('backend/face_detector.h5') not finished, using dlib for now
+face_recognizer = load_model('backend/face_recognizer.h5')
 
 @app.route('/process_video', methods=['POST'])
 def process_video():
