@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Blur Tool</title>
+    <link rel="stylesheet" href="blur.css">
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">Face Blur</div>
+            <input type="file" id="input" accept="video/* image/*" style="display: none;">
+            <div class="import" id="import" onclick="document.getElementById('input').click()">Import</div>
+        </div>
+        
+        <div class="settings-section">
+            <div class="settings-title">Blur Settings</div>
+            <div class="setting-item">
+                <label>Blur Intensity</label>
+                <input type="range" id="blurIntensity" min="0" max="100" value="50" step="1" oninput="document.getElementById('blurIntensityValue').innerText = this.value">
+                <div style="text-align: right;"><span id="blurIntensityValue">50</span></div>
+            </div>
+            <div class="setting-item">
+                <label>Face Detection Confidence</label>
+                <input type="range" id="confidenceThreshold" min="0" max="1" value="0.6" step="0.01" oninput="document.getElementById('confidenceThresholdValue').innerText = this.value">
+                <div style="text-align: right;"><span id="confidenceThresholdValue">0.6</span></div>
+            </div>
+            <button id="autoDetectBtn" class="action-button">Auto Blur Faces</button>
+        </div>
+
+        <div class="layers-section">
+            <div class="person-selector">
+                <div class="person-header">
+                    <h3>Add people<br>not to blur</h3>
+                    <button id="addPersonBtn" class="add-person-btn">+</button>
+                </div>
+                <div id="personList" class="person-list"></div>
+            </div>
+            
+            <div class="faces-header">
+                <span class="layers-title">All pictures</span>
+                <button id="clearAllBtn" class="clear-button">Clear All</button>
+            </div>
+
+            <ul id="facesList" class="faces-list">
+                <!-- Detected faces will be listed here -->
+            </ul>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="preview-area">
+
+        </div>
+
+        <div class="toolbar">
+            <!-- <button id="showOriBtn">Show original video</button>
+            <button id="showProBtn">Show processed video</button>
+            <button id="exportBtn">Export</button> -->
+        </div>
+
+        <div class="status-bar">
+            <span id="statusText">Please import video</span>
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+    </div>
+
+    <script src="blur.js"></script>
+</body>
+</html>
